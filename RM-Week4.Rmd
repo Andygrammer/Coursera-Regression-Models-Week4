@@ -1,0 +1,164 @@
+---
+title: "Regression Models Course Project"
+author: "André Marinho"
+date: "24/08/2020"
+output:
+        html_document:
+                keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 0. Executive Summary
+
+The Motor Trend US magazine is a very famous magazine in the United States for producing accurate data about automobile. The Motor Trend Car Road Tests (mtcars) is a dataset that was extracted from the 1974 and comprises fuel consumption based on 10 aspects of 32 models of automobile design and performance, collected by the Motor Trend US magazine.
+
+This project analysis mtcars with a particular interest in the following questions:
+
+- Is an automatic or manual transmission better for MPG?
+- Quantify the MPG difference between automatic and manual transmissions.
+
+It is conclude that there is a significant difference between the MPG of manual and automatic transmission vehicles. The manual automobiles have a better fuel efficiency (2.94 MPG more) than automatic ones.
+
+## 1. Exploratory Data Analysis
+
+```{r message=FALSE}
+
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(corrgram)
+library(caret)
+
+# Data analyses
+data <- mtcars
+dim(data)
+head(data)
+summary(data)
+
+# Data correlation
+corr <- cor(data)
+corr_high <- findCorrelation(corr, cutoff=0.75)
+names(data)[corr_high]
+
+# t-test
+t_test <- t.test(mpg~am, data=data)
+t_test$p.value
+t_test$estimate
+
+# summary of mpg, by transmission type
+data %>%
+        mutate(tr_type = ifelse(am == 0, no="manual", yes="automatic")) %>%
+        group_by(tr_type) %>%
+        summarise(median=median(mpg), mean=mean(mpg), sd=sd(mpg), min=min(mpg), max=max(mpg), count=n()) 
+```
+
+Data analyses conclusions:
+
+1. We can see higher correlations between "cyl", "disp", "mpg", and "gear".
+
+2. The p-value is less than 0.05. The null hypothesis "there is no correlation between transmission type and mpg" is rejected.
+
+3. There is more "automatic" data (6 more), but their median, mean, standard deviation, min, and max are all less than corresponding "manual" values.
+
+**Note:** refer to the **Appendix** section for the plotting.
+
+## 2. Build Model
+
+### 2.1. Linear Regression
+
+```{r}
+linear_model <- lm(mpg~am, data=data)
+summary(linear_model)$adj.r.squared
+```
+
+The value of ~0.34 represents ~34% (a low value) of the variation in the linear model. Hence, we going to examine other models. 
+
+### 2.2. Multi-variate Model
+
+```{r}
+model <- lm(mpg~., data=data)
+step_model <- step(model, k=log(nrow(data)), trace=FALSE)
+summary(step_model)$adj.r.squared
+summary(step_model)
+```
+
+Based on the step function, the optimal set of features is: {mpg ~ wt + qsec + am}. The variation is ~83% (an high value) in this case. Refer to the **Appendix** section for the plotting.
+
+### 2.3. Fit and Select Model
+
+```{r}
+best_model <- lm(mpg ~ wt + qsec + am, data=data)
+summary(best_model)$adj.r.squared # confirming adj.r.squared
+
+# Select final model
+anova(linear_model, step_model, best_model)
+confint(best_model)
+summary(best_model)$coef
+```
+
+Refer to **Appendix** section for the residual plotting.
+
+## 3. Conclusions
+
+Based on the models, plotting, and adopted strategy, we can conclude:
+
+1. The multivariate model suggests an am of 2.94 MPG for Manual (better) transmission over Automatic.
+
+2. The weight of a car holds to the fuel efficiency of lighter vehicles.
+
+3. Residual plotting provides heteroscedasticity information of the built models.
+
+4. The Residuals vs Fitted plots shows the difference about the independence of the variables.
+
+5. The Normal Q-Q plots displays a normal distribution of the points.
+
+6. The Scale-Location plots shows the variance of the points randomly distributed.
+
+7. The Residuals vs Leverage plots displays that values fall within 0.5 mark.
+
+## 4. Appendix
+
+### 4.1. Violin Plot (Data Analysis)
+
+```{r}
+data_plot <- data
+data_plot %>%
+        mutate(am = ifelse(am == 0, no='manual', yes='automatic')) %>%
+        ggplot(aes(x=am, y=mpg)) +
+        geom_violin(aes(fill=factor(am))) +
+        geom_jitter(height=0)
+```
+
+### 4.2. Motor Trend Card Road Tests Data Correlogram
+
+```{r}
+corrgram(data, order=TRUE, upper.panel=NULL, main="Car Data Correlogram", lower.panel=panel.cor)
+```
+
+### 4.3. Optimal Variables Plotting
+
+```{r}
+data_optimal <- select(data, mpg, wt, qsec, am)
+pairs(x=data_optimal, panel=panel.smooth, main="Optimal Variables Pair Plotting")
+```
+
+### 4.4. Residual Plotting
+
+#### 4.4.1. First Model
+
+```{r}
+par(mfrow=c(2,2))
+plot(linear_model)
+```
+
+#### 4.4.2. Better Model
+
+```{r}
+par(mfrow=c(2,2))
+plot(best_model)
+```
+
+
